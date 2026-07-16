@@ -24,18 +24,19 @@ RUN apt-get update \
 
 WORKDIR /src
 
-COPY pyproject.toml setup.py CMakeLists.txt requirements.txt README.md LICENSE ./
+COPY pyproject.toml setup.py CMakeLists.txt requirements.txt ./
+COPY README.md LICENSE ./
 COPY src ./src
 COPY api ./api
 COPY integrations ./integrations
 COPY compliance ./compliance
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install cmake ninja "pybind11>=2.12" "numpy>=1.26" \
+    && python -m pip install cmake ninja pybind11 numpy \
     && python -m pip wheel . -w /wheels --no-deps -v \
     && python -m pip wheel -r requirements.txt -w /wheels \
     && ls -la /wheels \
-    && test -n "$(ls /wheels/hnsw_healer*.whl 2>/dev/null)"
+    && ls /wheels/hnsw_healer*.whl
 
 # ---------------------------------------------------------------------------
 # Runtime: slim image, non-root

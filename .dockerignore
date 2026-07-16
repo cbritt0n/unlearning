@@ -26,7 +26,11 @@ wheelhouse
 
 # Docs / tests not needed for the runtime image (tests run in CI, not the image)
 tests
+docs
+# Keep README.md / LICENSE for setuptools metadata during wheel build
 *.md
+!README.md
+!LICENSE
 .gitignore
 .dockerignore
 Dockerfile
