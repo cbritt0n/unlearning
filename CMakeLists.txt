@@ -1,15 +1,34 @@
 cmake_minimum_required(VERSION 3.15...3.29)
-project(hnsw_healer LANGUAGES CXX)
+project(hnsw_healer VERSION 0.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Prefer a local pybind11 (e.g. from pip) via Python, fall back to find_package.
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+# Relocatable extension (important for macOS delocate / auditwheel)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+if(APPLE)
+  set(CMAKE_INSTALL_RPATH "@loader_path")
+  set(CMAKE_MACOSX_RPATH ON)
+else()
+  set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
 
-# Allow overriding with -Dpybind11_DIR=...
+# ---------------------------------------------------------------------------
+# Python + pybind11
+# Development.Module is required for manylinux/cibuildwheel (no full libpython).
+# Fall back to Development for older CMake/toolchains.
+# ---------------------------------------------------------------------------
+set(_hnsw_python_found FALSE)
+find_package(Python3 COMPONENTS Interpreter Development.Module QUIET)
+if(Python3_Development.Module_FOUND)
+  set(_hnsw_python_found TRUE)
+else()
+  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  set(_hnsw_python_found TRUE)
+endif()
+
 if(NOT pybind11_DIR)
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -m pybind11 --cmakedir
@@ -37,18 +56,17 @@ target_compile_definitions(hnsw_healer
     VERSION_INFO="${PROJECT_VERSION}"
 )
 
-# Hardened release defaults suitable for a memory-touching unlearning helper.
 if(MSVC)
   target_compile_options(hnsw_healer PRIVATE /O2 /W4 /EHsc)
 else()
-  target_compile_options(hnsw_healer PRIVATE -O3 -Wall -Wextra -Wpedantic)
+  # Keep warnings useful but avoid -Werror so CI toolchains don't flake.
+  target_compile_options(hnsw_healer PRIVATE -O3 -Wall -Wextra)
 endif()
 
-# Place the extension next to the project root for easy import during dev.
-set_target_properties(hnsw_healer PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-)
+# IMPORTANT: Do NOT override LIBRARY_OUTPUT_DIRECTORY here.
+# setup.py / cibuildwheel pass -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=<extdir>
+# so the built .so/.pyd lands where setuptools packages the wheel.
+# Overriding to CMAKE_BINARY_DIR produced empty/broken wheels in CI.
 
 install(TARGETS hnsw_healer
   LIBRARY DESTINATION .

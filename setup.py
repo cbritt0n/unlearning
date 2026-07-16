@@ -35,11 +35,19 @@ class CMakeBuild(build_ext):
         cfg = "Debug" if debug else "Release"
 
         cmake_args = [
+            # setuptools expects the extension in extdir — CMakeLists must not override this.
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
+            f"-DCMAKE_RUNTIME_OUTPUT_DIRECTORY={extdir}{os.sep}",
+            f"-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY={extdir}{os.sep}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DPython3_EXECUTABLE={sys.executable}",
+            f"-DPython_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",
         ]
+        # macOS: keep deployment target consistent with cibuildwheel
+        if sys.platform == "darwin":
+            deploy = os.environ.get("MACOSX_DEPLOYMENT_TARGET", "12.0")
+            cmake_args += [f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deploy}"]
         build_args = ["--config", cfg]
         using_ninja = False
 

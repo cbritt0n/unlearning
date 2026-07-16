@@ -427,5 +427,9 @@ PYBIND11_MODULE(hnsw_healer, m) {
         py::arg("timeout_ms"),
         "Set default-index stripe lock timeout.");
 
-    m.attr("__version__") = "0.1.0";
+#ifdef VERSION_INFO
+    m.attr("__version__") = VERSION_INFO;
+#else
+    m.attr("__version__") = "0.3.2";
+#endif
 }

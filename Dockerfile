@@ -1,19 +1,11 @@
-# syntax=docker/dockerfile:1.6
-# =============================================================================
-# Multi-stage production image for Latent Space Erasure & Graph Healing API
-# =============================================================================
+# syntax=docker/dockerfile:1
+# Multi-stage image for the HNSW Healer API.
 #
-# Stage 1 (build)  — full C++ toolchain; compile hnsw_healer into a wheel
-# Stage 2 (release)— slim runtime; unprivileged uvicorn serving api.main:app
-#
-# Build:
 #   docker build -t hnsw-healer:latest .
-# Run:
-#   docker run --rm -p 8000:8000 -v healer-data:/app/data hnsw-healer:latest
-# =============================================================================
+#   docker run --rm -p 8000:8000 -e HEALER_SIGNING_KEY=... -v healer-data:/app/data hnsw-healer:latest
 
 # ---------------------------------------------------------------------------
-# Stage 1: Build — compile the pybind11 extension into a binary wheel
+# Build: compile the native extension into a wheel
 # ---------------------------------------------------------------------------
 FROM python:3.11-bookworm AS build
 
@@ -22,7 +14,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
-# CMake + g++ for the native hnsw_healer module
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -33,20 +24,21 @@ RUN apt-get update \
 
 WORKDIR /src
 
-# Install build-system deps first for better layer caching
-COPY pyproject.toml setup.py CMakeLists.txt requirements.txt ./
+COPY pyproject.toml setup.py CMakeLists.txt requirements.txt README.md LICENSE ./
 COPY src ./src
 COPY api ./api
 COPY integrations ./integrations
 COPY compliance ./compliance
 
-RUN python -m pip install --upgrade pip setuptools wheel build \
-    && python -m pip install cmake ninja pybind11 numpy \
-    && python -m pip wheel . -w /wheels --no-deps \
-    && python -m pip wheel -r requirements.txt -w /wheels
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && python -m pip install cmake ninja "pybind11>=2.12" "numpy>=1.26" \
+    && python -m pip wheel . -w /wheels --no-deps -v \
+    && python -m pip wheel -r requirements.txt -w /wheels \
+    && ls -la /wheels \
+    && test -n "$(ls /wheels/hnsw_healer*.whl 2>/dev/null)"
 
 # ---------------------------------------------------------------------------
-# Stage 2: Release — minimal image, wheel only, non-root process
+# Runtime: slim image, non-root
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim-bookworm AS release
 
@@ -54,13 +46,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
-    # Persistence paths (WAL + index.bin)
     HEALER_DATA_DIR=/app/data \
-    # Bind all interfaces inside the container
     UVICORN_HOST=0.0.0.0 \
     UVICORN_PORT=8000
 
-# Unprivileged system user (no login shell, fixed UID for K8s runAsNonRoot)
 RUN groupadd --system --gid 10001 healer \
     && useradd --system --uid 10001 --gid healer --home-dir /app --shell /usr/sbin/nologin healer \
     && mkdir -p /app/data \
@@ -68,19 +57,18 @@ RUN groupadd --system --gid 10001 healer \
 
 WORKDIR /app
 
-# Copy prebuilt wheels from the build stage (compiled .so + pure-Python deps)
 COPY --from=build /wheels /tmp/wheels
 
-# Install the native wheel + API requirements; discard wheel cache afterward
+# Install project wheel first, then remaining deps (avoid shell glob surprises)
 RUN python -m pip install --upgrade pip \
+    && python -m pip install --no-cache-dir /tmp/wheels/hnsw_healer-*.whl \
     && python -m pip install --no-cache-dir /tmp/wheels/*.whl \
     && rm -rf /tmp/wheels \
-    && python -c "import hnsw_healer; import api.main; print('hnsw_healer', hnsw_healer.__version__)"
+    && python -c "import hnsw_healer, api.main; print('ok', hnsw_healer.__version__)"
 
 USER healer
 
 VOLUME ["/app/data"]
 EXPOSE 8000
 
-# Production ASGI server — single worker; scale out with replicas / gunicorn if needed
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
