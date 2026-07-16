@@ -1,8 +1,9 @@
 blank_issues_enabled: true
 contact_links:
+  # Update YOUR_ORG/YOUR_REPO after the first push
   - name: Security vulnerability
-    url: https://github.com/<your-org>/unlearning/security/advisories/new
+    url: https://github.com/YOUR_ORG/YOUR_REPO/security/advisories/new
     about: Private report for residual leaks or auth issues (see SECURITY.md)
-  - name: Discussions (if enabled)
-    url: https://github.com/<your-org>/unlearning/discussions
-    about: Q&A and design discussion that is not a bug or formal feature request
+  - name: Discussions
+    url: https://github.com/YOUR_ORG/YOUR_REPO/discussions
+    about: Questions and design chat that aren’t formal bugs or feature requests

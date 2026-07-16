@@ -6,14 +6,14 @@ body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem / motivation
-      description: What residual or ops pain does this address?
+      label: What’s the pain?
+      description: What are you trying to do that the project doesn’t cover well yet?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed solution
+      label: What would you like instead?
     validations:
       required: true
   - type: dropdown
@@ -36,4 +36,4 @@ body:
     attributes:
       label: Scope
       options:
-        - label: I understand this project does not claim full legal GDPR certification
+        - label: I get that this is index residual control, not a full legal GDPR product

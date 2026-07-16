@@ -1,15 +1,14 @@
-# Golden path — hard-delete that actually erases
+# Golden path
 
-This is the recommended integration for self-hosted Python RAG stacks.
+If you only read one integration doc, make it this one.
 
-**Goal:** forget a business id in one call, with:
+Goal: forget a business id in a single `delete` call — zero the embedding,
+rebuild the ANN structure once for the batch, attach a residual check and
+signed receipt, and (for Chroma) refuse metadata-only delete if hard erase
+fails.
 
-1. Physical zero of the embedding  
-2. **One** ANN rebuild (`compact`) per delete batch  
-3. Residual proof attached to a signed receipt  
-4. Fail-closed metadata delete (Chroma)
-
-You do **not** need a separate register step or manual `compact()` on this path.
+You shouldn’t need a separate “register ids” step or a manual `compact()` on
+this path; the adapters handle that.
 
 ---
 

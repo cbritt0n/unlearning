@@ -1,57 +1,49 @@
-# Security policy
+# Security
 
 ## Supported versions
 
-| Version | Supported |
-|---------|-----------|
-| 0.3.x   | Yes (alpha — best effort) |
-| &lt; 0.3 | Best effort only |
+| Version | Support |
+|---------|---------|
+| 0.3.x | Best effort (alpha) |
+| older | Best effort only |
 
-This project is **alpha**. Treat it as middleware you must validate in your
-threat model before production use.
+Alpha means: useful for careful pilots, not a guarantee. Validate against your
+own threat model before you put real user data behind it.
 
-## What we care about
+## What we want to hear about
 
-Priority issues:
+Please report:
 
-* Hard-delete paths that leave **recoverable residual embeddings** when a
-  receipt claims success
-* Fail-open soft-delete when hard-erase fails
-* Auth bypass on delete / workflow endpoints when `HEALER_API_KEY` is set
-* Signature / receipt forgery when signing keys are configured correctly
-* Path traversal or tenant isolation breaks under `HEALER_MULTI_TENANT`
+- Receipts that say success while deleted embeddings are still recoverable
+- Hard erase failing but soft-delete still running (fail-open)
+- Auth bypass on delete / workflow routes when an API key is configured
+- Receipt signature issues with a real `HEALER_SIGNING_KEY`
+- Tenant isolation problems when multi-tenant mode is on
 
-Lower priority / out of scope for “vulnerability” reports:
+Usually **not** treated as security bugs:
 
-* Soft-delete residual risk **by design** (that is the problem we document)
-* Incomplete wipe of OS swap, core dumps, or offline volume snapshots
-  (documented non-claims — see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md))
-* Legal determination of GDPR completeness
+- Soft-delete leaving residual floats — that’s the whole problem we document
+- Not wiping swap, core dumps, or offline volume snapshots
+  ([docs/THREAT_MODEL.md](docs/THREAT_MODEL.md))
+- “Is this enough for GDPR?” as a legal question
 
-## Reporting a vulnerability
+## How to report
 
-1. **Prefer** GitHub **Security Advisories** (private) on the repository once
-   published: *Security → Report a vulnerability*.
-2. If that is unavailable, open a **private** contact with maintainers without
-   attaching full exploit chains against third-party systems.
-3. Please include:
-   * Affected version / commit
-   * Component (`api`, `integrations`, native module, adapter)
-   * Steps to reproduce on a **local** fixture index
-   * Whether residual floats remain after a “successful” receipt
+1. Prefer GitHub **Security Advisories** on the repo (private):  
+   *Security → Report a vulnerability* (once the repo exists on GitHub).
+2. Otherwise contact maintainers privately. Don’t post full exploit write-ups
+   against systems you don’t own.
 
-We aim to acknowledge within **7 days** and provide a remediation plan for
-confirmed issues within **30 days** (alpha best effort).
+Include version/commit, which package area broke, steps on a **local** fixture
+index, and whether residual floats remain after a “successful” receipt.
 
-## Safe harbor
+We’ll try to acknowledge within a week and sketch a fix plan within a month for
+confirmed issues. Alpha resources are limited.
 
-Good-faith research against **your own** deployments or local fixtures is
-welcome. Do not test against systems you do not own.
+## Operators (short checklist)
 
-## Hardening checklist (operators)
-
-* Set a strong `HEALER_SIGNING_KEY` (never the default in production)
-* Set `HEALER_API_KEY` and `HEALER_ENV=production`
-* Prefer wipe + compact/rebuild; treat MN-RU heal as experimental
-* Fan-out deletes to all replicas; manage backup retention / crypto-shred
-* Store erasure receipts and residual proof samples in your audit log
+- Don’t ship the default signing key; set `HEALER_SIGNING_KEY` and `HEALER_API_KEY`
+- Use `HEALER_ENV=production` so the process refuses weak defaults
+- Prefer wipe + compact/rebuild; treat heal as experimental
+- Fan out deletes to replicas; plan backup retention or crypto-shred
+- Keep receipts and residual samples in your own audit log

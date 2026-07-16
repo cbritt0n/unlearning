@@ -1,117 +1,87 @@
-# Contributing to HNSW Healer
+# Contributing
 
-Thanks for helping improve residual-safe hard delete for HNSW / ANN stacks.
+Thanks for taking a look. This project is small and alpha; thoughtful PRs and
+honest bug reports help a lot.
 
-## Code of conduct
+Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 
-Be respectful. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+## What kinds of help we need
 
-## Ways to contribute
+- Bugs in wipe / compact / residual proofs / Windows builds
+- Adapters (Milvus is an obvious gap; deeper Qdrant/Weaviate is welcome)
+- Benchmark packs on real machines
+- Docs that save the next person an afternoon of cmake pain
+- CI / packaging improvements
 
-| Area | Examples |
-|------|----------|
-| **Bugs** | Failing residual proof, compact footguns, Windows build issues |
-| **Adapters** | Milvus, deeper Qdrant/Weaviate, pgvector |
-| **Eval** | hnswlib benchmark packs, residual metrics, cost tables |
-| **Docs** | Golden path, threat model honesty, install for new platforms |
-| **CI** | Wheels, optional-dep matrices |
+## Setup
 
-## Development setup
-
-### Recommended: Python 3.11 or 3.12
+Use **Python 3.11 or 3.12** if you can. 3.14 often has no hnswlib wheels.
 
 ```bash
-git clone https://github.com/<your-org>/unlearning.git
+git clone https://github.com/YOUR_ORG/unlearning.git   # after you fork
 cd unlearning
 python -m venv .venv
+# Windows:  .venv\Scripts\activate
+# Unix:     source .venv/bin/activate
 
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-python -m pip install -U pip
+pip install -U pip
 pip install -r requirements.txt
 pip install -e ".[dev]"
-```
-
-**Windows + hnswlib:** see [docs/HNSWLIB_AND_BENCHMARKS.md](docs/HNSWLIB_AND_BENCHMARKS.md)  
-(or `scripts/setup_hnswlib_env.ps1` + `scripts/install_hnswlib_msvc.bat`).
-
-Verify:
-
-```bash
 python -c "import hnsw_healer; print('ok')"
 pytest tests/ -v --ignore=tests/benchmark.py
 ```
 
-Optional extras:
+On Windows, building **hnswlib** needs MSVC. Short path:
+
+- [docs/HNSWLIB_AND_BENCHMARKS.md](docs/HNSWLIB_AND_BENCHMARKS.md)
+- or `scripts/setup_hnswlib_env.ps1` and `scripts/install_hnswlib_msvc.bat`
+
+Optional extras: `.[hnswlib]`, `.[chroma]`, `.[faiss]`, `.[qdrant]`, `.[enterprise]`.
+
+## Where code lives
+
+| Path | Stuff |
+|------|--------|
+| `src/` | C++ wipe, heal, locks, serialize |
+| `api/` | FastAPI, auth, metrics, WAL glue |
+| `integrations/` | ErasureService, adapters, workflows |
+| `compliance/` | Residual proofs, crypto-shred |
+| `tests/` | Unit tests (benchmarks are separate and slow) |
+| `docs/`, `examples/` | Guides and runnable demos |
+
+## A few ground rules
+
+1. **Don’t oversell.** We don’t claim full GDPR, or wiping swap / offline snapshots. If you add a new storage surface, update [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+2. **Fail closed.** If hard erase fails, don’t silently soft-delete and call it success.
+3. **Default is wipe + compact/rebuild.** MN-RU heal is optional and needs measurement (`HEALER_ALLOW_HEAL`).
+4. **Tests.** Add them when you can. Skip optional deps with `pytest.importorskip`.
+5. **Keep PRs small** enough to review in one sitting.
+
+## Tests and benchmarks
 
 ```bash
-pip install -e ".[hnswlib]"     # adapter tests
-pip install -e ".[chroma]"      # golden path example
-pip install -e ".[faiss]"       # FAISS adapter
-pip install -e ".[qdrant]"      # Qdrant client
-pip install -e ".[enterprise]"  # common production extras
-```
-
-## Project layout (where to put changes)
-
-| Path | Role |
-|------|------|
-| `src/` | C++ hot path (wipe, heal, locks, serialize) |
-| `api/` | FastAPI control plane, auth, metrics, WAL glue |
-| `integrations/` | ErasureService, adapters, workflow, strategy |
-| `compliance/` | Residual proofs, crypto-shred, bounds |
-| `tests/` | Unit tests; `tests/benchmark.py` is separate / heavy |
-| `docs/` | Threat model, golden path, benchmarks, engines |
-| `examples/` | Runnable demos (chroma forget, attack contrast) |
-
-## Coding guidelines
-
-1. **Security honesty** — do not claim full GDPR or wipe of swap/backups. Update [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) residual matrix when adding surfaces.
-2. **Fail-closed deletes** — hard-erase failure must not silently fall back to soft-only metadata delete.
-3. **Product default is wipe + compact/rebuild** — MN-RU heal is experimental (`HEALER_ALLOW_HEAL`). Prefer residual-safe usable search over heal-only.
-4. **Tests** — add/adjust tests under `tests/`; skip optional deps with `pytest.importorskip`.
-5. **Small PRs** — focused changes with a short residual/threat note if security-sensitive.
-
-## Running tests
-
-```bash
-# Core unit suite (CI-like)
 pytest tests/ -v --ignore=tests/benchmark.py
 
-# Adapter (if installed)
+# optional, needs hnswlib
 pytest tests/test_hnswlib_adapter.py -v
-```
 
-## Benchmarks (optional; long)
-
-```bash
-# Credible absolute numbers
+# optional, can be slow
 python tests/benchmark.py --profile quick --backend hnswlib
-python tests/benchmark.py --profile gdpr_light --backend hnswlib
-
-# Stress (can take a long time at N=50k)
-python tests/benchmark.py --profile standard --backend hnswlib
 ```
 
-Do **not** commit raw `benchmark_results/` trees (gitignored).  
-Summaries belong in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) or `docs/benchmarks/*.md`.
+Please don’t commit `benchmark_results/` (gitignored). If you publish numbers, write a short summary under `docs/benchmarks/` or update [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Pull requests
 
-1. Fork and branch from `main` (`feature/…` or `fix/…`).
-2. Ensure unit tests pass locally.
-3. PR description: **what / why**, residual impact if any, how to test.
-4. Link related issues.
-5. Maintainers may ask for a short threat-model note on delete-path changes.
+1. Branch off `main`.
+2. Make sure the unit suite is green.
+3. In the PR, say what changed, why, and how you tested it.
+4. If the delete path or residual story changes, call that out explicitly.
 
-## Reporting security issues
+## Security
 
-Do **not** open a public issue for exploitable residual leaks in production deployments.  
-See [SECURITY.md](SECURITY.md).
+If you found a way to keep residual floats while claiming success, or to bypass auth on delete endpoints, **don’t** open a public issue. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the **Apache License 2.0** (see [LICENSE](LICENSE)).
+Contributions are under the same [Apache 2.0](LICENSE) license as the rest of the project.

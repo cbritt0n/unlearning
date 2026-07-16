@@ -6,8 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for filing a bug. For **security** residual leaks in production,
-        use [SECURITY.md](../SECURITY.md) / private advisory instead of a public issue.
+        Thanks for the report. If this is a security issue (e.g. residual floats
+        after a “successful” delete, or auth bypass), please use a **private**
+        channel — see SECURITY.md — instead of a public issue.
   - type: textarea
     id: summary
     attributes:

@@ -1,31 +1,27 @@
-## Summary
+## What and why
 
-<!-- What does this PR change and why? -->
+<!-- Short description. Link issues if you have them. -->
 
-## Type of change
+## Kind of change
 
 - [ ] Bug fix
 - [ ] Feature / adapter
-- [ ] Docs / community
-- [ ] Benchmarks / eval
-- [ ] Refactor / CI
-- [ ] Security-sensitive (delete path, residual, auth)
+- [ ] Docs
+- [ ] Benchmarks
+- [ ] CI / refactor
+- [ ] Touches delete path, residual proofs, or auth (call this out)
 
-## Residual / threat impact
+## Residual impact
 
-<!-- Required if you checked Security-sensitive. Else "N/A". -->
+<!-- "N/A" is fine if you didn't touch delete/security. -->
 
-- Surfaces wiped / not wiped:
-- Fail-closed behavior unchanged? (yes/no)
-
-## How tested
+## How you tested
 
 - [ ] `pytest tests/ -v --ignore=tests/benchmark.py`
-- [ ] Optional: adapter tests / example scripts
-- [ ] Optional: `python tests/benchmark.py --profile quick --backend hnswlib`
+- [ ] Extra: adapter tests / examples / a quick benchmark
 
 ## Checklist
 
-- [ ] Docs updated if user-facing
-- [ ] No secrets or live `data/` / `benchmark_results/` artifacts committed
-- [ ] Non-claims preserved (no “full GDPR” language)
+- [ ] Docs updated if this changes how people use the project
+- [ ] No secrets, `.venv`, `data/`, or `benchmark_results/` in the PR
+- [ ] No claims that oversell legal “GDPR complete” status

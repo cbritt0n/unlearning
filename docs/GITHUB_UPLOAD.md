@@ -1,68 +1,59 @@
-# Publishing this repo to GitHub
+# Putting this on GitHub
 
-Checklist for maintainers before the first public push.
+Rough checklist if you’re publishing the tree for the first time.
 
-## 1. Create the empty GitHub repository
+## Create the empty repo
 
-1. On GitHub: **New repository** (public or private).  
-2. Do **not** initialize with a README if you will push an existing tree.  
-3. Note the URL: `https://github.com/<org-or-user>/<repo>.git`
+On GitHub, create a new repo. Skip the “add a README” option if you’re pushing
+this directory as-is. Copy the clone URL.
 
-Replace placeholders in:
+Then replace `YOUR_ORG` (or similar placeholders) in:
 
-* `setup.py` → `url=`
-* `.github/ISSUE_TEMPLATE/config.yml` → security / discussions URLs
-* `README.md` → clone URL / badges (if any)
+- `setup.py` (`url` and `project_urls`)
+- `.github/ISSUE_TEMPLATE/config.yml` (security / discussions links)
 
-## 2. Local git (first time)
+## Push (this tree already has git history)
 
 ```bash
 cd unlearning
-git init
-git branch -M main
-git add .
-git status   # confirm no .venv, data/, benchmark_results/, *.pyd, secrets
-git commit -m "Initial public release: HNSW Healer 0.3.2"
-git remote add origin https://github.com/<org-or-user>/<repo>.git
+git remote add origin https://github.com/YOUR_ORG/YOUR_REPO.git
 git push -u origin main
 ```
 
-## 3. Must not be committed
+If you started from a clean machine without commits, `git init`, `git add .`,
+and commit first — then push.
 
-Already covered by `.gitignore` (verify with `git status`):
+Before you push, run `git status` and make sure you’re **not** shipping:
 
-* `.venv/`, `data/`, `benchmark_results/`, `*.pyd`, `*.dll`, wheels, caches  
-* Live indexes, WAL, receipt logs, API keys  
+- `.venv/`, `data/`, `benchmark_results/`
+- `*.pyd`, runtime DLLs, wheels
+- real `.env` files or signing keys
 
-## 4. GitHub repository settings (recommended)
+`.gitignore` should already cover those.
 
-| Setting | Action |
-|---------|--------|
-| **About** | Description: “Hard-delete residual vectors in HNSW — wipe, rebuild, prove, receipt” |
-| **Topics** | `machine-unlearning`, `hnsw`, `gdpr`, `vector-database`, `rag`, `privacy` |
-| **Security** | Enable private vulnerability reporting |
-| **Actions** | Allow GitHub Actions (CI builds wheels) |
-| **Branch protection** (optional) | Require `CI green` on `main` |
-| **Discussions** | Enable if you want Q&A |
+## Repo settings that help
 
-## 5. After first push
+- **Description:** something like “Hard-delete residual vectors in HNSW indexes”
+- **Topics:** `machine-unlearning`, `hnsw`, `privacy`, `rag`, `vector-search`
+- Turn on **private vulnerability reporting**
+- Allow **Actions** so the existing wheel CI can run
+- Optional: protect `main` and require the CI green check
+- Optional: enable Discussions for Q&A
 
-1. Confirm Actions run is green (or note known Windows-only local builds).  
-2. Edit Security advisory URL if org/repo name differs.  
-3. Optional: create release tag `v0.3.2` with notes from [CHANGELOG.md](../CHANGELOG.md).  
-4. Optional: publish wheels to PyPI when ready (`python -m build` + trusted publishing).
+## After the first push
 
-## 6. Community onboarding links
+1. Check that Actions either passes or fails for a reason you understand.
+2. Fix the security advisory URL in issue templates if the org/repo name changed.
+3. Tag a release (`v0.3.2`) using notes from [CHANGELOG.md](../CHANGELOG.md) if you want.
+4. PyPI can wait until you’re ready for a real package publish.
 
-Point newcomers to:
+## What to link for newcomers
 
-1. [README.md](../README.md)  
-2. [docs/GOLDEN_PATH.md](GOLDEN_PATH.md)  
-3. [docs/INSTALL.md](INSTALL.md) / [HNSWLIB_AND_BENCHMARKS.md](HNSWLIB_AND_BENCHMARKS.md)  
+1. README  
+2. [GOLDEN_PATH.md](GOLDEN_PATH.md)  
+3. [INSTALL.md](INSTALL.md) / [HNSWLIB_AND_BENCHMARKS.md](HNSWLIB_AND_BENCHMARKS.md)  
 4. [CONTRIBUTING.md](../CONTRIBUTING.md)  
-5. [docs/THREAT_MODEL.md](THREAT_MODEL.md) (honesty)  
-6. [docs/benchmarks/standard_hnswlib.md](benchmarks/standard_hnswlib.md) (numbers)
+5. [THREAT_MODEL.md](THREAT_MODEL.md)  
+6. [benchmarks/standard_hnswlib.md](benchmarks/standard_hnswlib.md)  
 
-## 7. Support expectations (alpha)
-
-Documented in [SUPPORT.md](../SUPPORT.md): best-effort issues, no SLA, security via private channel.
+Support expectations: [SUPPORT.md](../SUPPORT.md).

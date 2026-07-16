@@ -1,60 +1,56 @@
-# Standard profile — hnswlib backend (published pack)
+# Benchmark pack: standard + hnswlib
 
-| Field | Value |
-|-------|--------|
+This is the run we treat as the main public number set (not the synthetic
+native-graph stress tests).
+
+| | |
+|-|-|
 | Profile | `standard` |
-| Backend | **hnswlib** |
-| N / d | 50 000 / 128 |
-| Queries / k | 1 000 / 10 |
-| Waves | 5 × 10% (up to **50%** deleted) |
-| M / ef | 16 / construction defaults in harness |
-| Date | 2026-07-16 |
-| Machine | Windows (local), Python 3.12 venv |
-
-Reproduce:
+| Backend | hnswlib |
+| Size | 50k vectors × 128 dims |
+| Queries | 1k, recall@10 |
+| Deletes | 5 waves of 10% each (up to half the index) |
+| When / where | 2026-07-16, Windows, Python 3.12 venv |
 
 ```bash
 python tests/benchmark.py --profile standard --backend hnswlib \
   --out-dir benchmark_results/standard_hnswlib
 ```
 
-Raw JSON is gitignored under `benchmark_results/`; this summary is the
-**committed** community-facing record.
+Raw JSON lives under `benchmark_results/` (gitignored). This markdown file is
+what we keep in git for the community.
 
-## Final wave (50% deleted)
+## After 50% of the index is gone
 
-| Scenario | Recall@10 | Retention (÷ baseline) | Residual | Usable | Total delete wall (s) |
-|----------|-----------|------------------------|----------|--------|------------------------|
-| baseline (0%) | **0.331** | 1.00 | — | Y | — |
-| A soft | 0.470 | 1.42 | **YES** | **N** | ~0.02 |
-| B unhealed | 0.475 | 1.43 | no | Y | ~0.02 |
-| C healed* | 0.473 | 1.43 | no | Y | ~0.03 |
-| **D rebuild** | **0.447** | **1.35** | **no** | **Y** | ~2.4 |
-| **E adaptive** | **0.456** | **1.38** | **no** | **Y** | ~2.4 |
+| Scenario | Recall@10 | vs baseline | Residual floats? | Still usable? | Time spent deleting |
+|----------|-----------|-------------|------------------|---------------|---------------------|
+| baseline (nothing deleted) | 0.331 | 1.00× | — | yes | — |
+| A soft | 0.470 | 1.42× | **still there** | no (privacy) | ~0.02s |
+| B unhealed | 0.475 | 1.43× | gone | yes | ~0.02s |
+| C “healed”* | 0.473 | 1.43× | gone | yes | ~0.03s |
+| D rebuild | 0.447 | 1.35× | gone | yes | ~2.4s |
+| E adaptive | 0.456 | 1.38× | gone | yes | ~2.4s |
 
-\* On hnswlib, “heal” ≈ zero + `mark_deleted` (no native MN-RU).
+\* On hnswlib this isn’t real MN-RU — it’s basically zero + `mark_deleted`.
 
-## Product reading
+### How to read it
 
-1. **Privacy:** A always **residual=YES**; D/E **residual=no** at every wave.  
-2. **Quality:** D/E stay within ~0.02–0.03 absolute recall of soft at 50% delete; retention &gt; 1.0 vs baseline.  
-3. **Cost:** Rebuild is slower to apply (~0.3–0.7 s per wave) but search p95 **improves** (smaller live index).  
-4. Soft is **not** privacy-usable (`usable=False`) despite high recall.
+Soft-delete wins or ties on pure recall, but the vectors are still on disk.
+Rebuild is a few hundred ms to ~0.7s per wave, yet search quality stays close
+to soft and residual checks pass. That’s the trade we care about.
 
-**Headline:** wipe + rebuild matches soft-class quality closely while eliminating residual floats.
-
-## Wave-1 (10% delete) — GDPR-like stress step
+## After the first 10% (more like a real batch job)
 
 | Scenario | Recall@10 | Residual | Usable | delete_s |
 |----------|-----------|----------|--------|----------|
-| A soft | 0.349 | YES | N | 0.003 |
-| D rebuild | 0.351 | no | Y | 0.675 |
-| E adaptive | 0.346 | no | Y | 0.665 |
+| A soft | 0.349 | yes | no | 0.003 |
+| D rebuild | 0.351 | no | yes | 0.675 |
+| E adaptive | 0.346 | no | yes | 0.665 |
 
-At 10% deleted, **D ≈ A on recall** with residual cleared.
+Here soft and rebuild are basically tied on quality; only rebuild clears residual.
 
 ## Caveats
 
-* Baseline recall@10 ≈ 0.33 depends on harness ef/M; raise ef for higher absolute recall in your own packs.  
-* This is a **synthetic Gaussian** corpus, not production embeddings.  
-* Multi-wave 50% is a **torture** schedule; also publish `gdpr_light` / `gdpr_batch`.  
+- Absolute recall depends on ef/M in the harness; bump ef if you want flashier numbers.
+- Data is random unit Gaussians, not your production embeddings.
+- Deleting half the index in waves is a stress test. Also look at `gdpr_light` / `gdpr_batch`.

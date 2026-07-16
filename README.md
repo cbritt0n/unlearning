@@ -1,98 +1,74 @@
 # HNSW Healer
 
-### Hard-delete residual vectors in HNSW — wipe, rebuild, prove, receipt
+**Hard-delete for HNSW indexes** — zero the embedding, keep search working, prove the floats are gone.
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![C++](https://img.shields.io/badge/C%2B%2B-17-orange.svg)](src/)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](CHANGELOG.md)
 
-**Soft-delete leaves invertible float embeddings on disk.** HNSW Healer is middleware that **physically zeros** residual vectors, **rebuilds / compacts** the ANN structure so search stays usable (MN-RU heal is optional/experimental), **proves** residual absence, and emits a **signed audit receipt**—so \(\mathbf{v}\) is not waiting for a Vec2Text-class inversion.
+A lot of vector DBs “delete” a point by setting a tombstone. Search stops returning it, but the float vector often still sits in the HNSW blob. That’s a problem if someone can dump the index and run inversion models (Vec2Text-style) against leftover rows.
 
-**Headline evaluation (hnswlib, N=50k, 10% delete):** soft and wipe+rebuild both ~**0.35 recall@10**, but soft leaves **residual=YES** while rebuild is **residual=no** and still **usable**. Full pack: [docs/benchmarks/standard_hnswlib.md](docs/benchmarks/standard_hnswlib.md).
+This repo is middleware for that gap: wipe the row for real, rebuild or compact so the graph doesn’t fall apart, optionally attach residual checks and a signed receipt. It is **not** a full vector database and **not** a lawyer-stamped GDPR product. You still have to delete documents, backups, and replicas yourself.
 
-> **Start here:** [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md) · [docs/INSTALL.md](docs/INSTALL.md) · [CONTRIBUTING.md](CONTRIBUTING.md)  
-> **Windows + hnswlib:** [docs/HNSWLIB_AND_BENCHMARKS.md](docs/HNSWLIB_AND_BENCHMARKS.md)  
-> **Upload to GitHub:** [docs/GITHUB_UPLOAD.md](docs/GITHUB_UPLOAD.md) · **Security:** [SECURITY.md](SECURITY.md)
+New here? Start with the [golden path](docs/GOLDEN_PATH.md) or [install notes](docs/INSTALL.md). On Windows with hnswlib, use [this setup guide](docs/HNSWLIB_AND_BENCHMARKS.md). Security reports go to [SECURITY.md](SECURITY.md).
 
-| Layer | What you get |
-|-------|----------------|
-| **Native core** | C++17 / pybind11 — wipe, MN-RU heal, lock-coupled search, serialize |
-| **Control plane** | FastAPI — durable delete, ingest, workflows, metrics, receipts |
-| **Integrations** | hnswlib / FAISS / Chroma hooks, id registry, outbox fan-out |
-| **Compliance** | Residual proofs, crypto-shred, webhooks, threat-model docs |
+**One result that matters:** on hnswlib (N=50k, 10% deletes), soft-delete and wipe+rebuild land at about the same recall@10 (~0.35), but soft still has residual floats and rebuild does not. Details: [standard hnswlib pack](docs/benchmarks/standard_hnswlib.md).
 
-This is **not** a full GDPR product or a greenfield vector DB. It is an **index residual control** you wire onto the delete path.
+| Piece | Role |
+|-------|------|
+| C++ / pybind11 core | Wipe, optional MN-RU heal, locked search, serialize |
+| FastAPI service | Deletes, search, ingest, workflows, metrics |
+| Adapters | hnswlib, FAISS, Chroma, Qdrant, Weaviate (rebuild-based where needed) |
+| Compliance helpers | Residual proofs, crypto-shred hooks, threat-model docs |
 
 ---
 
-## Table of contents
+## Contents
 
-1. [The problem](#the-problem)
-2. [What this project does](#what-this-project-does)
-3. [What it does *not* claim](#what-it-does-not-claim)
-4. [Architecture](#architecture)
-5. [Repository layout](#repository-layout)
-6. [Requirements](#requirements)
-7. [Quick start](#quick-start)
-8. [Usage paths](#usage-paths)
-9. [HTTP API](#http-api)
-10. [Native Python API](#native-python-api)
-11. [Enterprise integration](#enterprise-integration)
-12. [Durability & crash recovery](#durability--crash-recovery)
-13. [Concurrency model](#concurrency-model)
-14. [Configuration](#configuration)
-15. [Testing & benchmarks](#testing--benchmarks)
-16. [Docker](#docker)
-17. [CI & packaging](#ci--packaging)
-18. [Security & residual data](#security--residual-data)
-19. [Troubleshooting](#troubleshooting)
-20. [Roadmap & status](#roadmap--status)
-21. [Further documentation](#further-documentation)
-22. [Community](#community)
-23. [License](#license)
+[Problem](#the-problem) · [What it does](#what-this-project-does) · [Non-claims](#what-it-does-not-claim) · [Architecture](#architecture) · [Layout](#repository-layout) · [Quick start](#quick-start) · [Usage](#usage-paths) · [HTTP API](#http-api) · [Python API](#native-python-api) · [Integrations](#enterprise-integration) · [Durability](#durability--crash-recovery) · [Config](#configuration) · [Tests & benchmarks](#testing--benchmarks) · [Docker](#docker) · [CI](#ci--packaging) · [Security](#security--residual-data) · [Troubleshooting](#troubleshooting) · [Status](#roadmap--status) · [Docs](#further-documentation) · [Community](#community)
 
 ---
 
 ## The problem
 
-Modern RAG and semantic-search stacks store document embeddings in ANN indexes (often **HNSW**). When a business “deletes” a user or document, many vector databases perform a **metadata soft-delete**:
+RAG stacks embed text and park those vectors in an ANN index (often HNSW). When a user asks to be forgotten, the app usually deletes the *document* and the DB marks the *vector id* as gone.
 
-- Query filters skip the id.
-- The raw embedding \(\mathbf{v}\) often **remains** in the in-memory or on-disk HNSW structure.
+What many systems still do under the hood:
 
-Security research has shown that residual vectors can be recovered from storage and inverted toward plaintext with models in the **Vec2Text** family—bypassing the intent of GDPR Art. 17–style erasure and similar contractual unlearning requirements.
+1. Filter the id out of search results.
+2. Leave the raw embedding \(\mathbf{v}\) in RAM / on disk.
 
-Naïve hard delete (drop edges, leave holes) is rarely adopted because it **fragments** the graph and destroys recall. Operators therefore choose soft-delete for performance—and leave latent data on disk.
+If you can read the index file, you can sometimes recover something close to the original text. Operators stick with soft-delete because a careless hard delete blows holes in the graph and tanks recall.
 
 ```text
   App:  DELETE user_42
            │
            ▼
-  Vector DB soft-delete ──►  metadata tombstone
+  Soft-delete ──► tombstone only
            │
            ▼
-  HNSW binary still holds v_42  ──►  dump floats  ──►  inversion model  ──►  text
+  HNSW still holds v_42  ──► dump floats  ──► inversion model  ──► text
 ```
 
 ---
 
 ## What this project does
 
-HNSW Healer treats delete as a **three-part unlearning operation**:
+Deletes are treated as more than a metadata flip:
 
-1. **Physical erasure** — write `0.0f` into the embedding region (volatile stores to resist compiler elision).
-2. **Graph healing** — isolate the node, then reconnect orphaned neighbors with an **MN-RU** heuristic under degree cap \(M\), so the index remains navigable.
-3. **Durable commit** — WAL `BEGIN` → mutate → `index.bin.tmp` → atomic `os.replace` → WAL `COMMIT`, with **startup replay** of incomplete transactions.
+1. **Wipe** the embedding (zeros written in a way compilers are less likely to elide).
+2. **Fix the graph** so search still works — default path is rebuild/compact on adapters; the C++ core also has an MN-RU heal heuristic (useful, but not magic — measure it).
+3. **Commit safely** on the native path: WAL intent → mutate → temp file → atomic rename → commit, with replay after crashes.
 
-| Concern | Soft delete | Naïve hard delete | **HNSW Healer** |
-|---------|-------------|-------------------|-----------------|
-| Residual \(\mathbf{v}\) in index | Remains | Often zeroed, not always durable | Zeroed in process + rewritten checkpoint |
-| Search quality after delete | Intact | Orphans / fragmentation | MN-RU rewire under max-\(M\) |
-| Crash mid-delete | N/A | Old checkpoint can resurrect \(\mathbf{v}\) | WAL + atomic rename + recovery |
-| Concurrent queries during rewire | Usually fine | Race risk | Neighborhood-striped R/W locks |
-| Business ids (`user_id`) | App-level | App-level | `ErasureService` + registry + HTTP `/v1` |
-| hnswlib / Chroma | Soft-delete native | Manual | Adapters: wipe + `mark_deleted` + `compact` / hook |
+| | Soft delete | Naïve hard delete | This project |
+|-|-------------|-------------------|--------------|
+| Residual floats | Stay | Sometimes zeroed, not always durable | Zero + rewrite / compact |
+| Search after delete | Fine | Often broken | Rebuild/compact (heal optional) |
+| Crash mid-delete | n/a | Old snapshot can bring \(\mathbf{v}\) back | WAL + atomic publish |
+| Concurrent search | Usually fine | Racy | Neighborhood locks + retries |
+| Business ids | Your problem | Your problem | Registry + `ErasureService` + `/v1` |
+| hnswlib / Chroma | Soft by default | DIY | Adapters that wipe then compact / hook |
 
 ---
 
@@ -691,16 +667,9 @@ python -m build
 | Replica that never received delete | **No** — fan-out required |
 | OS swap / core dumps | **No** |
 
-Production checklist: wipe + heal → compact/rewrite → crypto-shred if used → fan-out to replicas → backup policy → sample residual proofs → store receipts.
+In production, think in layers: wipe + compact → shred keys if you encrypted cold copies → fan out to replicas → expire backups → keep the receipt. More detail in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) and [docs/BACKUPS_AND_REPLICAS.md](docs/BACKUPS_AND_REPLICAS.md).
 
-Details: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/BACKUPS_AND_REPLICAS.md](docs/BACKUPS_AND_REPLICAS.md).
-
-### Operational hygiene
-
-- Set a strong `HEALER_SIGNING_KEY` (never ship the default).
-- Run the container as non-root (default).
-- Prefer encrypted volumes for `HEALER_DATA_DIR`.
-- Treat WAL and receipts as potentially sensitive (who was deleted, when).
+Practical habits: strong `HEALER_SIGNING_KEY`, never the default; non-root container (Dockerfile already does this); encrypt the data volume if you can; remember receipts can leak *who* was deleted even when vectors are gone.
 
 ---
 
@@ -729,90 +698,57 @@ pip install -e . --force-reinstall --no-deps
 
 ## Roadmap & status
 
-**Current: v0.3.2 (Alpha)** — residual-first eval + wipe/rebuild product path; stay on 0.x until a production pilot + published hnswlib GDPR packs.
+**v0.3.2, alpha.** Usable for pilots and integration work. Expect rough edges and API churn until 1.0.
 
-**Implemented**
+Already in tree (high level):
 
-- [x] Physical wipe + MN-RU heal in C++
-- [x] Neighborhood locks + Python retry
-- [x] WAL + atomic checkpoint + recovery
-- [x] FastAPI + enterprise id delete + **vector ingest** (`POST /v1/vectors/ingest`)
-- [x] hnswlib adapter + Chroma hook
-- [x] Residual proofs + crypto-shred helpers
-- [x] Docker + cibuildwheel CI + evaluation harness
-- [x] First-class FAISS `IndexHNSW` backend (`FaissHNSWHardDeleteAdapter`)
-- [x] Multi-replica delete fan-out + **durable file outbox**
-- [x] KMS-backed crypto-shred (LocalFile / AWS / GCP / Vault interfaces)
-- [x] Deeper in-process vendor attach (`attach_index`, shared memory, `InPlaceVendorSession`)
-- [x] Formal recall bounds under adversarial deletes
-- [x] Receipt schema v2 + **append-only receipt log** (`receipts.jsonl`)
-- [x] Auto / **coalesced compact** policy + residual proof fail-closed
-- [x] Golden path, attack demo, pilot checklist, hooks docs
-- [x] `ErasureWorkflow` + HTTP webhooks / crypto-shred / backup hooks
-- [x] API key middleware + production signing-key guard
-- [x] **Metrics** (`GET /metrics`, `GET /v1/metrics`)
-- [x] Multi-tenant data-dir + key derivation helpers
-- [x] Benchmark residual × quality × cost; scenarios A–E; hnswlib backend; `gdpr_*` profiles
-- [x] **Qdrant** + **Weaviate** rebuild-based adapters (in-memory clients for tests)
-- [x] Delete strategy: wipe+compact default; heal opt-in (`HEALER_ALLOW_HEAL`); adaptive compact
-- [x] Queue transports: file / Redis / SQS for replica intents
+- Native wipe, optional MN-RU heal, locks, WAL, FastAPI
+- Adapters for hnswlib, FAISS, Chroma, Qdrant, Weaviate
+- Receipts (v2), residual proofs, crypto-shred helpers, workflows, metrics
+- Wipe+compact as the default story; heal behind `HEALER_ALLOW_HEAL`
+- Benchmarks that track residual risk, not just recall
+- Published [standard/hnswlib numbers](docs/benchmarks/standard_hnswlib.md)
 
-**Planned / welcome contributions**
+Would love help with:
 
-- [ ] Milvus first-class adapter
-- [ ] Production KMS grant automation (per-tenant CMK lifecycle)
-- [ ] Distributed consensus for delete quorum (Raft) beyond outbox/HTTP
-- [x] Published **standard/hnswlib** number pack ([docs/benchmarks/standard_hnswlib.md](docs/benchmarks/standard_hnswlib.md))
-- [ ] More `gdpr_*` / `publish` packs on dedicated release hardware
-- [ ] PyPI wheel release automation for all platforms
+- Milvus adapter
+- Stronger multi-region delete coordination
+- More benchmark packs on real hardware
+- PyPI release automation
 
-Production deployments typically **ingest** vectors via adapters (or load adjacency from an upstream HNSW builder) and use this stack for **erasure, heal, concurrent search, and durable commit**—not as a full greenfield vector database.
+In production people usually keep their existing vector store, dual-write or wrap deletes, and use this for **erasure + evidence** — not as the only system of record.
 
 ---
 
 ## Further documentation
 
-| Document | Contents |
-|----------|----------|
-| [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md) | Recommended Chroma/hnswlib forget path |
-| [docs/INSTALL.md](docs/INSTALL.md) | 30-minute install + production secrets |
-| [docs/PILOT.md](docs/PILOT.md) | Design-partner pilot checklist |
-| [docs/HOOKS.md](docs/HOOKS.md) | Workflow webhooks, crypto-shred, outbox |
-| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Adversaries, residual matrix, non-claims |
-| [docs/INTEGRATION.md](docs/INTEGRATION.md) | FAISS / Chroma / replica / KMS / attach wiring |
-| [docs/BACKUPS_AND_REPLICAS.md](docs/BACKUPS_AND_REPLICAS.md) | Snapshots, fan-out, crypto-shred runbook |
-| [docs/RECALL_BOUNDS.md](docs/RECALL_BOUNDS.md) | Theorems on recall under deletes |
-| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Benchmark profiles and how to read residual × quality |
-| [docs/benchmarks/standard_hnswlib.md](docs/benchmarks/standard_hnswlib.md) | **Published** N=50k hnswlib pack |
-| [docs/ENGINES.md](docs/ENGINES.md) | Qdrant / Weaviate / strategy / queues |
-| [docs/TESTING.md](docs/TESTING.md) | Full test matrix |
-| [docs/GITHUB_UPLOAD.md](docs/GITHUB_UPLOAD.md) | First push / org settings checklist |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| Doc | What’s in it |
+|-----|----------------|
+| [GOLDEN_PATH.md](docs/GOLDEN_PATH.md) | Shortest path to a real hard-delete |
+| [INSTALL.md](docs/INSTALL.md) | Env, secrets, smoke checks |
+| [HNSWLIB_AND_BENCHMARKS.md](docs/HNSWLIB_AND_BENCHMARKS.md) | Windows + hnswlib + how to run evals |
+| [THREAT_MODEL.md](docs/THREAT_MODEL.md) | What we clear and what we don’t |
+| [BENCHMARKS.md](docs/BENCHMARKS.md) / [standard pack](docs/benchmarks/standard_hnswlib.md) | Numbers and how to read them |
+| [ENGINES.md](docs/ENGINES.md) | Adapter notes |
+| [INTEGRATION.md](docs/INTEGRATION.md) | Wiring FAISS / Chroma / replicas / KMS |
+| [HOOKS.md](docs/HOOKS.md), [PILOT.md](docs/PILOT.md) | Workflows and pilot checklist |
+| [GITHUB_UPLOAD.md](docs/GITHUB_UPLOAD.md) | First public push |
+| [CHANGELOG.md](CHANGELOG.md) | What changed by version |
 
 ---
 
 ## Community
 
-| Resource | Link |
-|----------|------|
-| Contributing guide | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Code of conduct | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
-| Security reports | [SECURITY.md](SECURITY.md) |
-| Support expectations | [SUPPORT.md](SUPPORT.md) |
-| Changelog | [CHANGELOG.md](CHANGELOG.md) |
+Want to help? Read [CONTRIBUTING.md](CONTRIBUTING.md). Be decent ([CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)).
 
-**PR basics:** fork → branch → `pytest tests/ -v --ignore=tests/benchmark.py` → open PR with residual note if you touch the delete path. Details in CONTRIBUTING.
+- Bugs / features: GitHub issues (templates included)
+- Security: [SECURITY.md](SECURITY.md) — please don’t file residual exploits as public issues
+- Support expectations: [SUPPORT.md](SUPPORT.md) (best effort, alpha)
+
+Typical PR flow: fork, branch, run `pytest tests/ -v --ignore=tests/benchmark.py`, open a PR. If you touch delete or residual paths, say so in the description.
 
 ---
 
 ## License
 
-Licensed under the **Apache License 2.0**. See [LICENSE](LICENSE).
-
----
-
-<p align="center">
-  <sub>
-    Hard delete means zeros in the index—not a tombstone that still holds the latent vector.
-  </sub>
-</p>
+[Apache License 2.0](LICENSE).

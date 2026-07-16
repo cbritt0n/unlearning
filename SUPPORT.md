@@ -1,34 +1,30 @@
 # Support
 
-HNSW Healer is **alpha** open-source middleware. Support is **best effort** from
-maintainers and the community — there is no commercial SLA unless you arrange
-one separately.
+This is alpha open source. We’ll help when we can; there’s no SLA unless you
+have a separate commercial arrangement.
 
-## Where to get help
+## Where to go
 
-| Need | Where |
-|------|--------|
-| Install / how-to | [docs/INSTALL.md](docs/INSTALL.md), [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md) |
-| Benchmarks | [docs/BENCHMARKS.md](docs/BENCHMARKS.md), [docs/HNSWLIB_AND_BENCHMARKS.md](docs/HNSWLIB_AND_BENCHMARKS.md) |
-| Bug | [GitHub Issues](../../issues) using the bug template |
-| Feature idea | Feature-request issue template |
-| Security residual leak | [SECURITY.md](SECURITY.md) — **private** report |
-| Design discussion | GitHub Discussions (if enabled) |
+| Question | Place |
+|----------|--------|
+| How do I install / run a first delete? | [docs/INSTALL.md](docs/INSTALL.md), [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md) |
+| Benchmarks / hnswlib on Windows | [docs/BENCHMARKS.md](docs/BENCHMARKS.md), [docs/HNSWLIB_AND_BENCHMARKS.md](docs/HNSWLIB_AND_BENCHMARKS.md) |
+| Something’s broken | GitHub Issues (use the bug template) |
+| Feature idea | Feature-request issue |
+| Possible security issue | [SECURITY.md](SECURITY.md) — keep it private |
+| Design chat | Discussions, if we’ve turned them on |
 
-## Before opening an issue
+## Before you open an issue
 
-1. Search existing issues.  
-2. Confirm you are on a supported Python (3.10–3.12 recommended).  
-3. Include OS, Python version, and whether `hnsw_healer` / `hnswlib` import.  
-4. Prefer a **minimal reproduction** (local fixtures only).
+- Search existing issues so we don’t duplicate threads.
+- Mention OS, Python version, and whether `import hnsw_healer` / `import hnswlib` works.
+- A minimal local repro beats a giant app dump.
 
-## What we do not support here
+## Out of scope here
 
-* Legal advice on GDPR / CCPA completeness  
-* Hardening of third-party SaaS vector DBs without an adapter  
-* Guaranteed wipe of OS swap, core dumps, or cloud snapshots  
+- Legal advice (“are we GDPR compliant?”)
+- Fixing hosted SaaS vector DBs we can’t plug into
+- Promising to wipe swap, core dumps, or every cloud snapshot
   (see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md))
 
-## Response times
-
-No guaranteed response time. Security reports are prioritized per SECURITY.md.
+We don’t promise response times. Security reports get priority when we can.

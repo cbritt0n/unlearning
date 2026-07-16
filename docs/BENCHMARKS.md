@@ -1,14 +1,12 @@
-# Benchmarks — quality × residual × cost
+# Benchmarks
 
-Primary product axes (not “beat soft-delete on recall alone”):
+We care about three things at once: **are residual floats gone?**, **does
+search still work?**, and **how long did the delete take?** Soft-delete will
+often win pure recall — that’s fine. Soft fails the residual check, which is
+why this project exists.
 
-| Axis | Soft (A) | Hard rebuild (D) / Adaptive (E) |
-|------|----------|----------------------------------|
-| **Residual risk** | **YES** (floats remain) | **no** after wipe+compact |
-| **Search quality** | Highest | Near baseline when rebuild is good |
-| **Privacy-usable** | No | Yes if residual-safe + retention OK |
-
-MN-RU heal (**C**) is **experimental**. On synthetic graphs it can collapse recall; do not lead with it.
+MN-RU heal (scenario C on the native backend) is experimental. On weak
+synthetic graphs it can trash recall. Don’t lead demos with it.
 
 ## Scenarios
 
