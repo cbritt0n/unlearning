@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose an adapter, API, or evaluation improvement
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What residual or ops pain does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - engine adapter (Milvus, etc.)
+        - API / control plane
+        - compliance / proofs
+        - benchmarks / eval
+        - docs / DX
+        - other
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: nonclaims
+    attributes:
+      label: Scope
+      options:
+        - label: I understand this project does not claim full legal GDPR certification

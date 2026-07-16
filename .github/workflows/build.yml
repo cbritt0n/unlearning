@@ -1,0 +1,143 @@
+# =============================================================================
+# CI/CD — multi-platform wheels (cibuildwheel) + unit tests
+# =============================================================================
+#
+# Triggers on pull requests (and pushes) targeting main.
+#
+# Matrix:
+#   • Linux x86_64   (manylinux, ubuntu-latest)
+#   • Linux ARM64    (manylinux aarch64, ubuntu-24.04-arm)
+#   • macOS arm64    (Apple Silicon, macos-14)
+#
+# For each platform cibuildwheel:
+#   1. Builds the pybind11 hnsw_healer extension into a wheel
+#   2. Installs the wheel in a clean environment
+#   3. Runs pytest (tests/, excluding the long benchmark suite)
+#
+# The job fails (red) if any wheel build or test fails.
+# =============================================================================
+
+name: build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same PR/branch
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Build & test native wheels across platforms
+  # -------------------------------------------------------------------------
+  build_wheels:
+    name: wheels (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 — manylinux via Docker (cibuildwheel default)
+          - name: linux-x86_64
+            os: ubuntu-latest
+            cibw_archs: x86_64
+
+          # Linux ARM64 — native ARM runners (no QEMU)
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            cibw_archs: aarch64
+
+          # macOS Apple Silicon
+          - name: macos-arm64
+            os: macos-14
+            cibw_archs: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel==2.22.0
+
+      # ------------------------------------------------------------------
+      # cibuildwheel reads [tool.cibuildwheel] from pyproject.toml and:
+      #   • spins manylinux (Linux) or uses the host toolchain (macOS)
+      #   • builds cp310/cp311/cp312 wheels for the matrix arch
+      #   • runs test-command after each wheel install
+      # ------------------------------------------------------------------
+      - name: Build wheels and run unit tests
+        env:
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
+          # Ensure CMake is present for the C++ extension (also in before-build)
+          CIBW_BEFORE_BUILD: >-
+            pip install cmake ninja pybind11 numpy setuptools wheel
+          CIBW_TEST_REQUIRES: >-
+            pytest>=8.0.0 httpx>=0.27.0 numpy>=1.26.0
+            fastapi>=0.110.0 cryptography>=42.0.0 uvicorn>=0.27.0
+          CIBW_TEST_COMMAND: >-
+            pytest {project}/tests -v
+            --ignore={project}/tests/benchmark.py
+          # Keep CI logs readable
+          CIBW_BUILD_VERBOSITY: 1
+        run: python -m cibuildwheel --output-dir wheelhouse
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.name }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+  # -------------------------------------------------------------------------
+  # Lightweight Docker image build (validates Dockerfile on Linux x86_64)
+  # -------------------------------------------------------------------------
+  docker:
+    name: docker image
+    runs-on: ubuntu-latest
+    needs: []  # independent of wheels; fails the PR if Dockerfile is broken
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build release image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: hnsw-healer:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # -------------------------------------------------------------------------
+  # Gate: all wheel matrices + docker must be green
+  # -------------------------------------------------------------------------
+  ci-success:
+    name: CI green
+    if: always()
+    needs: [build_wheels, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check dependent jobs
+        run: |
+          echo "build_wheels=${{ needs.build_wheels.result }}"
+          echo "docker=${{ needs.docker.result }}"
+          if [ "${{ needs.build_wheels.result }}" != "success" ] \
+             || [ "${{ needs.docker.result }}" != "success" ]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          echo "All packaging checks passed."

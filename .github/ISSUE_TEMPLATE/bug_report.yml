@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a defect in hard-delete, residual proof, adapters, or the API
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. For **security** residual leaks in production,
+        use [SECURITY.md](../SECURITY.md) / private advisory instead of a public issue.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong in one or two sentences?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: "0.3.2 or git SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - native (C++ / hnsw_healer)
+        - api (FastAPI)
+        - ErasureService / receipts
+        - hnswlib adapter
+        - Chroma hook
+        - FAISS / Qdrant / Weaviate adapter
+        - workflow / hooks
+        - benchmarks
+        - docs / install
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps or script (local fixtures only).
+      placeholder: |
+        1. pip install -e ".[dev]"
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: checkboxes
+    id: residual
+    attributes:
+      label: Residual / safety
+      options:
+        - label: Receipt reported success but residual floats may remain
+        - label: Soft-delete-only path was taken unexpectedly
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "OS, Python version, compiler (if native build)"

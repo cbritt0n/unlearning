@@ -1,0 +1,23 @@
+# Ensure C++ sources and docs ship in sdists so wheels can be built from source.
+include CMakeLists.txt
+include pyproject.toml
+include requirements.txt
+include LICENSE
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include CODE_OF_CONDUCT.md
+include SECURITY.md
+include SUPPORT.md
+recursive-include src *.cpp *.hpp *.h
+recursive-include api *.py
+recursive-include integrations *.py
+recursive-include compliance *.py
+recursive-include docs *.md
+recursive-include examples *
+prune tests
+prune data
+prune benchmark_results
+prune hnsw_healer.egg-info
+prune .github
+prune .venv

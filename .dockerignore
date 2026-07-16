@@ -1,0 +1,32 @@
+# VCS / IDE
+.git
+.github
+.vscode
+.idea
+*.egg-info
+
+# Python junk
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local runtime artifacts
+data
+benchmark_results
+*.bin
+*.wal
+*.tmp
+build
+dist
+wheelhouse
+
+# Docs / tests not needed for the runtime image (tests run in CI, not the image)
+tests
+*.md
+.gitignore
+.dockerignore
+Dockerfile
