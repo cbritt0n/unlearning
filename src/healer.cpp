@@ -427,8 +427,11 @@ PYBIND11_MODULE(hnsw_healer, m) {
         py::arg("timeout_ms"),
         "Set default-index stripe lock timeout.");
 
+// VERSION_INFO comes from setup.py define_macros / CMake; stringify if present.
+#define HNSW_HEALER_STRINGIFY2(x) #x
+#define HNSW_HEALER_STRINGIFY(x) HNSW_HEALER_STRINGIFY2(x)
 #ifdef VERSION_INFO
-    m.attr("__version__") = VERSION_INFO;
+    m.attr("__version__") = HNSW_HEALER_STRINGIFY(VERSION_INFO);
 #else
     m.attr("__version__") = "0.3.2";
 #endif

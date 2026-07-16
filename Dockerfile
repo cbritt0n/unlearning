@@ -17,8 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        cmake \
-        ninja-build \
+        g++ \
         git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,7 +31,7 @@ COPY integrations ./integrations
 COPY compliance ./compliance
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install cmake ninja pybind11 numpy \
+    && python -m pip install pybind11 numpy \
     && python -m pip wheel . -w /wheels --no-deps -v \
     && python -m pip wheel -r requirements.txt -w /wheels \
     && ls -la /wheels \

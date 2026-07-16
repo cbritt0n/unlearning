@@ -46,15 +46,10 @@ jobs:
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
           CIBW_BUILD: "cp310-* cp311-* cp312-*"
           CIBW_SKIP: "pp* *-win32 *-manylinux_i686 *-musllinux_*"
-          # Prefer binary wheels for pybind11/numpy inside manylinux.
-          CIBW_BEFORE_BUILD: >-
-            pip install --upgrade pip
-            && pip install cmake ninja setuptools wheel
-            && pip install --only-binary=:all: pybind11 numpy
+          # Extension builds via pybind11.setup_helpers (no CMake in manylinux).
+          CIBW_BEFORE_BUILD: pip install -U pip setuptools wheel pybind11 numpy
           CIBW_TEST_REQUIRES: pytest httpx numpy fastapi cryptography uvicorn
-          CIBW_TEST_COMMAND: >-
-            pytest {project}/tests -v
-            --ignore={project}/tests/benchmark.py
+          CIBW_TEST_COMMAND: pytest {project}/tests -v --ignore={project}/tests/benchmark.py
           CIBW_BUILD_VERBOSITY: "1"
           MACOSX_DEPLOYMENT_TARGET: "12.0"
         run: python -m cibuildwheel --output-dir wheelhouse
@@ -78,11 +73,11 @@ jobs:
       - name: Install build tools and package
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential cmake ninja-build
-          python -m pip install --upgrade pip
+          sudo apt-get install -y --no-install-recommends build-essential g++
+          python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements.txt
           python -m pip install -e ".[dev]"
-          python -c "import hnsw_healer; print(hnsw_healer.__version__)"
+          python -c "import hnsw_healer; print('hnsw_healer', hnsw_healer.__version__)"
       - name: Unit tests
         run: pytest tests/ -v --ignore=tests/benchmark.py
 

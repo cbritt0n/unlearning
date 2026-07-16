@@ -2,11 +2,11 @@
 # Package metadata and the CMake extension live in setup.py.
 
 [build-system]
+# Default build uses pybind11.setup_helpers (no cmake required for wheels).
+# CMake remains optional via HNSW_HEALER_USE_CMAKE=1 for local advanced builds.
 requires = [
     "setuptools>=61",
     "wheel",
-    "cmake>=3.15",
-    "ninja",
     "pybind11>=2.12.0",
     "numpy>=1.26.0",
 ]
@@ -19,7 +19,7 @@ build-backend = "setuptools.build_meta"
 # CPython 3.10–3.12 (matches project python_requires>=3.10)
 build = "cp310-* cp311-* cp312-*"
 skip = "pp* *-win32 *-manylinux_i686 *-musllinux_*"
-before-build = "pip install --upgrade pip && pip install cmake ninja setuptools wheel && pip install --only-binary=:all: pybind11 numpy"
+before-build = "pip install -U pip setuptools wheel pybind11 numpy"
 test-requires = [
     "pytest>=8.0.0",
     "httpx>=0.27.0",
