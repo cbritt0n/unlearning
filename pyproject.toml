@@ -8,7 +8,7 @@ requires = [
     "setuptools>=61",
     "wheel",
     "pybind11>=2.12.0",
-    "numpy>=1.26.0",
+    "numpy>=1.26.4",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -23,7 +23,7 @@ before-build = "pip install -U pip setuptools wheel pybind11 numpy"
 test-requires = [
     "pytest>=8.0.0",
     "httpx>=0.27.0",
-    "numpy>=1.26.0",
+    "numpy>=1.26.4",
     "fastapi>=0.110.0",
     "cryptography>=42.0.0",
     "uvicorn>=0.27.0",
